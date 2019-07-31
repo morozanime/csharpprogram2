@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Windows.Forms;
@@ -17,6 +18,7 @@ namespace WindowsFormsApp2
         private ClipboardNotification clipboardNotification;
         private int skipClipboardNotifications = 0;
         private int clipboardRxNb = 0;
+        private List<Int32> clientsList;
         public Form1()
         {
             InitializeComponent();
@@ -25,6 +27,8 @@ namespace WindowsFormsApp2
             myNetworkInterface.newDatagram += onNewDatagram;
             clipboardNotification = new ClipboardNotification();
             ClipboardNotification.ClipboardUpdate += onClipboardUpdate;
+            checkedListBox1.ItemCheck += CheckedListBox1_ItemCheck;
+            clientsList = new List<Int32>();
         }
 
         private void onNewDatagram(object sender, EventArgs e)
@@ -39,11 +43,9 @@ namespace WindowsFormsApp2
                     label1.Text = "Rx:" + clipboardRxNb.ToString();
                     try
                     {
-                        Clipboard.Clear();
-                        skipClipboardNotifications++;
                         Clipboard.SetText(str);
                         skipClipboardNotifications += 2;
-                        Console.WriteLine("+skipClipboardNotifications " + skipClipboardNotifications.ToString());
+                        //                        Console.WriteLine("+skipClipboardNotifications " + skipClipboardNotifications.ToString());
                     }
                     catch (Exception ex)
                     {
@@ -58,18 +60,30 @@ namespace WindowsFormsApp2
             {
                 BeginInvoke(new MethodInvoker(delegate
                 {
-                    textBox1.Clear();
+                    checkedListBox1.Items.Clear();
+                    clientsList.Clear();
                     foreach (Int32 id in myNetworkInterface.clients.Keys)
                     {
-                        textBox1.AppendText(myNetworkInterface.clients[id].ToString() + "\n");
+                        string s = myNetworkInterface.clients[id].addr.ToString() + ", " + ((myNetworkInterface.clients[id].alive > 0) ? id.ToString("x8") : "offline");
+                        checkedListBox1.Items.Add(s, myNetworkInterface.clients[id].selected);
+                        clientsList.Add(id);
                     }
                 }));
             }
         }
 
+        private void CheckedListBox1_ItemCheck(object sender, ItemCheckEventArgs e)
+        {
+            CheckedListBox cb = (CheckedListBox)sender;
+            if (cb.SelectedIndex < 0)
+                return;
+
+            //когда галочка стоит возвращает FALSE, снята - TRUE !!! WTF??
+            myNetworkInterface.setClientEnabled(clientsList[cb.SelectedIndex], !cb.GetItemChecked(cb.SelectedIndex));
+        }
+
         private void onClipboardUpdate(object sender, EventArgs e)
         {
-            Console.WriteLine("-skipClipboardNotifications " + skipClipboardNotifications.ToString());
             if (skipClipboardNotifications == 0)
             {
                 if (myNetworkInterface.clients.Count() > 0)
@@ -91,16 +105,9 @@ namespace WindowsFormsApp2
             byte[] data = null;
             try
             {
-                Console.WriteLine(".");
                 o = Clipboard.GetDataObject();
-                if (o != null)
-                {
-                    Console.WriteLine("!");
-                    if (o.GetDataPresent(DataFormats.Text))
-                    {
-                        data = Encoding.ASCII.GetBytes(o.GetData(DataFormats.Text).ToString());
-                    }
-                }
+                if (o != null && o.GetDataPresent(DataFormats.Text))
+                    data = Encoding.Default.GetBytes(o.GetData(DataFormats.Text).ToString());
             }
             catch (Exception ex)
             {
